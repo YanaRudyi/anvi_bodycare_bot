@@ -6,3 +6,17 @@ ANVI Bodycare Bot is your personal assistant for all things ANVI. Discover a wor
 
 ## Local run
 You need to specify ANVI_BOT_TOKEN environment variable to run it locally
+
+# parser feature
+This parser is created to extract product data (names, URLs, prices, and cover image URLs) from a website.
+
+It works exclusively with the following URL: https://www.anvibodycare.com/shop.
+
+## Requirements
+
+To run this parser, the following libraries:
+
+- requests
+- beautifulsoup4
+
+You can install them using `pip install -r requirements.txt`
