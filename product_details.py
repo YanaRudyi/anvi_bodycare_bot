@@ -24,80 +24,93 @@ def get_product_page_links(shop_url):
 
 
 def parse_product_page(url):
+    def extract_product_name(json_path):
+        return json_path("name")
+
+    def extract_description(json_path):
+        return json_path("description")
+
+    def extract_prices(json_path):
+        product_items = json_path("productItems", [])
+        formatted_prices = [item.get("formattedPrice") for
+                            item in product_items]
+        return formatted_prices
+
+    def extract_weight_volume(json_path):
+        options_list = json_path("options", [])
+        weight_volume = []
+        for option in options_list[:1]:
+            if "selections" in option and isinstance(
+                    option["selections"], list):
+                for selection in option["selections"]:
+                    if "key" in selection:
+                        weight_volume.append(selection["key"])
+        return weight_volume
+
+    def extract_packaging(json_path):
+        options_list = json_path("options", [])
+        packaging_values = []
+        if len(options_list) > 1:
+            second_option = options_list[1]
+            if "selections" in second_option and isinstance(
+                    second_option["selections"], list):
+                for selection in second_option["selections"]:
+                    if "value" in selection:
+                        packaging_values.append(selection["value"])
+        return packaging_values
+
+    def extract_additional_info(json_path):
+        additional_info_list = json_path("additionalInfo", [])
+        for info in additional_info_list:
+            info.pop("id", None)
+            info.pop("index", None)
+        return additional_info_list
+
     response = requests.get(url)
 
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.content, "html.parser")
+    if response.status_code != 200:
+        raise Exception(f"Failed to retrieve product page: {url}")
 
-        script_tag = soup.find("script", {
-            "type": "application/json",
-            "id": "wix-warmup-data",
-            }
-            )
+    soup = BeautifulSoup(response.content, "html.parser")
+    script_tag = soup.find("script", {
+        "type": "application/json", "id": "wix-warmup-data"
+        })
 
-        if script_tag:
-            json_data = json.loads(script_tag.string)
+    if not script_tag:
+        raise Exception('Script tag not found.')
 
-            dynamic_key = None
+    json_data = json.loads(script_tag.string)
+    dynamic_key = next((key for key in json_data.get(
+            "appsWarmupData", {}).get(
+            "1380b703-ce81-ff05-f115-39571d94dfcd", {})
+        if key.startswith("productPage_UAH_")), None)
 
-            for key in json_data.get("appsWarmupData", {}).get(
-                    "1380b703-ce81-ff05-f115-39571d94dfcd", {}):
-                if key.startswith("productPage_UAH_"):
-                    dynamic_key = key
-                    break
-            json_path = json_data.get("appsWarmupData", {}).get(
-                "1380b703-ce81-ff05-f115-39571d94dfcd", {}).get(
-                dynamic_key, {}).get(
-                "catalog").get(
-                "product", {}).get
+    if not dynamic_key:
+        raise Exception('Dynamic key not found in JSON data.')
 
-            product_name = json_path("name")
+    json_path = json_data.get("appsWarmupData", {}).get(
+        "1380b703-ce81-ff05-f115-39571d94dfcd", {}).get(
+        dynamic_key, {}).get(
+        "catalog").get(
+        "product", {}).get
 
-            description = json_path("description")
+    product_name = extract_product_name(json_path)
+    description = extract_description(json_path)
+    formatted_prices = extract_prices(json_path)
+    weight_volume = extract_weight_volume(json_path)
+    packaging_values = extract_packaging(json_path)
+    additional_info_list = extract_additional_info(json_path)
 
-            product_items = json_path("productItems", [])
-            formatted_prices = [item.get("formattedPrice") for
-                                item in product_items]
+    inner_dict = {
+        "description": description,
+        "prices": formatted_prices,
+        "weight_volume": weight_volume,
+        "packaging": packaging_values,
+        "additional_info": additional_info_list,
+    }
 
-            options_list = json_path("options", [])
-            weight_volume = []
-            for option in options_list[:1]:
-                if "selections" in option and isinstance(
-                        option["selections"], list):
-                    for selection in option["selections"]:
-                        if "key" in selection:
-                            weight_volume.append(selection["key"])
-
-            packaging_options_list = json_path("options", [])
-            packaging_values = []
-            if len(packaging_options_list) > 1:
-                second_option = packaging_options_list[1]
-                if "selections" in second_option and isinstance(
-                        second_option["selections"], list):
-                    for selection in second_option["selections"]:
-                        if "value" in selection:
-                            packaging_values.append(selection["value"])
-
-            additional_info_list = json_path("additionalInfo", [])
-            for info in additional_info_list:
-                info.pop("id", None)
-                info.pop("index", None)
-
-            inner_dict = {
-                "description": description,
-                "prices": formatted_prices,
-                "weight_volume": weight_volume,
-                "packaging": packaging_values,
-                "additional_info": additional_info_list,
-            }
-
-            output_dict = {product_name: inner_dict}
-
-            output_json = json.dumps(output_dict, ensure_ascii=False, indent=4)
-
-            return output_json
-        else:
-            return f'Script tag not found.'
+    output_dict = {product_name: inner_dict}
+    return json.dumps(output_dict, ensure_ascii=False, indent=4)
 
 
 if __name__ == "__main__":
@@ -116,8 +129,8 @@ if __name__ == "__main__":
 
         with open(output_filename, 'w', encoding='utf-8') as output_file:
             output_json = json.dumps(
-                product_data_dict, 
-                ensure_ascii=False, 
+                product_data_dict,
+                ensure_ascii=False,
                 indent=4,
                 )
             output_file.write(output_json)
