@@ -6,11 +6,11 @@ API_TOKEN = os.environ.get('ANVI_BOT_TOKEN')
 bot = TeleBot(API_TOKEN)
 
 main_menu_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-product_catalog_button = types.KeyboardButton("🛍️ Product Catalog")
-about_us_button = types.KeyboardButton("🏢 About Us")
-contact_us_button = types.KeyboardButton("📞 Contact Us")
-search_button = types.KeyboardButton("🔍 Search")
-help_button = types.KeyboardButton("📞 Help")
+product_catalog_button = types.KeyboardButton("🛍️ Каталог продуктів")
+about_us_button = types.KeyboardButton("🏢 Про нас")
+contact_us_button = types.KeyboardButton("📞 Контакти")
+search_button = types.KeyboardButton("🔍 Пошук")
+help_button = types.KeyboardButton("👋 Допомога")
 
 main_menu_keyboard.row(product_catalog_button)
 main_menu_keyboard.row(about_us_button)
@@ -21,31 +21,31 @@ main_menu_keyboard.row(help_button)
 
 @bot.message_handler(commands=['start'])
 def send_main_menu(message):
-    bot.send_message(message.chat.id, "Welcome to AnviBodyCare! How can we assist you today?",
+    bot.send_message(message.chat.id, "Ласкаво просимо в Anvi! Як ми можемо допомогти вам сьогодні?",
                      reply_markup=main_menu_keyboard)
 
 
-@bot.message_handler(func=lambda message: message.text == "📞 Help")
+@bot.message_handler(func=lambda message: message.text == "👋 Допомога")
 def provide_help(message):
     bot.send_message(message.chat.id, "Будь ласка, залишіть ваші дані і ми вам зателефонуємо")
 
 
-@bot.message_handler(func=lambda message: message.text == "🔍 Search")
+@bot.message_handler(func=lambda message: message.text == "🔍 Пошук")
 def provide_search(message):
     bot.send_message(message.chat.id, "Введіть параметри запиту:")
 
 
-@bot.message_handler(func=lambda message: message.text == "📞 Contact Us")
+@bot.message_handler(func=lambda message: message.text == "📞 Контакти")
 def provide_contact_info(message):
-    bot.send_message(message.chat.id, "Ти можеш зв'язатись з нами через anvibodycare@gmail.com.")
+    bot.send_message(message.chat.id, "Ви можеш зв'язатись з нами через anvibodycare@gmail.com.")
 
 
-@bot.message_handler(func=lambda message: message.text == "🏢 About Us")
+@bot.message_handler(func=lambda message: message.text == "🏢 Про нас")
 def provide_about_us_info(message):
     bot.send_message(message.chat.id, "Ми Anvi. Забота про ваше тіло – наша головна мета!")
 
 
-@bot.message_handler(func=lambda message: message.text == "🛍️ Product Catalog")
+@bot.message_handler(func=lambda message: message.text == "🛍️ Каталог продуктів")
 def provide_products(message):
     bot.send_message(message.chat.id, "Наші продукти: ")
 
