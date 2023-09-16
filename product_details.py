@@ -1,6 +1,13 @@
 import requests
 from bs4 import BeautifulSoup
 import json
+import re
+import cachetools
+
+CLEANR = re.compile('<.*?>|&nbsp;|\t|\n|\r|<br\s*/?>')
+
+# Cache with an expiration time of 1 hour
+cache = cachetools.TTLCache(maxsize=1, ttl=3600)
 
 
 def get_product_page_links(shop_url):
@@ -94,6 +101,23 @@ def parse_product_page(url):
         "catalog").get(
         "product", {}).get
 
+    def clean_html(raw_html):
+        cleantext = re.sub(CLEANR, ' ', raw_html)
+        return cleantext
+
+    def clean_html_entities(data):
+        if isinstance(data, str):
+            return clean_html(data)
+        elif isinstance(data, list):
+            return [clean_html_entities(item) for item in data]
+        elif isinstance(data, dict):
+            cleaned_dict = {}
+            for key, value in data.items():
+                cleaned_dict[key] = clean_html_entities(value)
+            return cleaned_dict
+        else:
+            return data
+
     product_name = extract_product_name(json_path)
     description = extract_description(json_path)
     formatted_prices = extract_prices(json_path)
@@ -101,42 +125,22 @@ def parse_product_page(url):
     packaging_values = extract_packaging(json_path)
     additional_info_list = extract_additional_info(json_path)
 
-    inner_dict = {
-        "description": description,
-        "prices": formatted_prices,
-        "weight_volume": weight_volume,
-        "packaging": packaging_values,
-        "additional_info": additional_info_list,
+    product_details = {
+        "product name": clean_html_entities(product_name),
+        "description": clean_html_entities(description),
+        "prices": clean_html_entities(formatted_prices),
+        "weight_volume": clean_html_entities(weight_volume),
+        "packaging": clean_html_entities(packaging_values),
+        "additional_info": clean_html_entities(additional_info_list),
     }
 
-    output_dict = {product_name: inner_dict}
-    return json.dumps(output_dict, ensure_ascii=False, indent=4)
+    cache["product_details"] = product_details
+
+    return product_details
 
 
 if __name__ == "__main__":
     shop_url = 'https://www.anvibodycare.com/shop'
-    output_filename = 'product_data.json'
-
     product_page_links = get_product_page_links(shop_url)
-
-    if product_page_links:
-        product_data_dict = {}
-
-        for link in product_page_links:
-            product_data = parse_product_page(link)
-            if product_data:
-                product_data_dict.update(json.loads(product_data))
-
-        with open(output_filename, 'w', encoding='utf-8') as output_file:
-            output_json = json.dumps(
-                product_data_dict,
-                ensure_ascii=False,
-                indent=4,
-                )
-            output_file.write(output_json)
-
-        print(
-            f"Data has been written to '{output_filename}'."
-            )
-    else:
-        print("No product-page links found on the shop page.")
+    for link in product_page_links:
+        print(parse_product_page(link))
