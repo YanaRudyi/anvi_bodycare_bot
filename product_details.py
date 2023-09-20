@@ -11,7 +11,7 @@ cache = cachetools.TTLCache(maxsize=1, ttl=3600)
 
 
 def get_product_page_links(shop_url):
-    product_page_links = set()
+    product_page_links = {}
 
     response = requests.get(shop_url)
 
@@ -22,12 +22,11 @@ def get_product_page_links(shop_url):
         for link in product_links:
             product_page_url = link['href']
             if 'product-page' in product_page_url:
-                product_page_links.add(product_page_url)
+                product_page_links[product_page_url] = True
 
-        return product_page_links
-    else:
-        print(f"Failed to retrieve shop page: {shop_url}")
-        return set()
+        return list(product_page_links.keys())
+
+    return []
 
 
 def parse_product_page(url):
