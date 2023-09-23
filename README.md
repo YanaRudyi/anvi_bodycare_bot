@@ -20,3 +20,25 @@ To run this parser, the following libraries:
 - beautifulsoup4
 
 You can install them using `pip install -r requirements.txt`
+
+# product_parser
+This parcer is created to extract these details about all existing products in the shop and present them in a .json file:
+- product name
+- description
+- prices
+- packaging options
+- weight/volume options
+- additional information.
+
+If any of the values in the data are empty - the information about the product does not exist.
+
+Works only with https://www.anvibodycare.com/shop
+
+## Requirements
+To run, install the following libraries:
+
+- requests
+- bs4
+- cachetools
+
+You can install them using `pip install -r requirements.txt`
