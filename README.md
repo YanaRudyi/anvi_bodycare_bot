@@ -21,7 +21,7 @@ To run this parser, the following libraries:
 
 You can install them using `pip install -r requirements.txt`
 
-# product-parser
+# product_parser
 This parcer is created to extract these details about all existing products in the shop and present them in a .json file:
 - product name
 - description
@@ -39,5 +39,6 @@ To run, install the following libraries:
 
 - requests
 - bs4
+- cachetools
 
-You can install them using `pip install -r product_parser_requirements.txt`
+You can install them using `pip install -r requirements.txt`
