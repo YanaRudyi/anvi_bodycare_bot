@@ -2,8 +2,8 @@ name: CI
 
 on:
   push:
-#    branches:
-#      - main
+  #    branches:
+  #      - main
   workflow_dispatch:
 
 jobs:
@@ -22,8 +22,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Install dev dependencies
-        run: pip install -r requirements-dev.txt
-
       - name: Run tests
-        run: python
+        env:
+          PYTHONPATH: ./
+        run: pytest tests/
