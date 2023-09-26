@@ -12,7 +12,7 @@ from model import Base
 config = context.config
 section = config.config_ini_section
 config.set_section_option(section, "DB_USER", os.environ.get("DB_USER"))
-config.set_section_option(section, "DB_PASS", os.environ.get("DB_PASS"))
+config.set_section_option(section, "DB_PASSWORD", os.environ.get("DB_PASSWORD"))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
