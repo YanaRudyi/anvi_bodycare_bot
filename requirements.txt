@@ -1,5 +1,5 @@
 ﻿pyTelegramBotAPI==4.13.0
 beautifulsoup4==4.12.2
 requests==2.31.0
-pytest==7.4.2
 cachetools==5.3.1
+pytest==7.4.2
