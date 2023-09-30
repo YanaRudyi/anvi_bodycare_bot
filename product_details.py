@@ -1,8 +1,9 @@
-import requests
-from bs4 import BeautifulSoup
 import json
 import re
+
 import cachetools
+import requests
+from bs4 import BeautifulSoup
 
 CLEANR = re.compile('<.*?>|&nbsp;|\t|\n|\r|<br\s*/?>')
 
@@ -80,16 +81,16 @@ def parse_product_page(url):
     soup = BeautifulSoup(response.content, "html.parser")
     script_tag = soup.find("script", {
         "type": "application/json", "id": "wix-warmup-data"
-        })
+    })
 
     if not script_tag:
         raise Exception('Script tag not found.')
 
     json_data = json.loads(script_tag.string)
     dynamic_key = next((key for key in json_data.get(
-            "appsWarmupData", {}).get(
-            "1380b703-ce81-ff05-f115-39571d94dfcd", {})
-        if key.startswith("productPage_UAH_")), None)
+        "appsWarmupData", {}).get(
+        "1380b703-ce81-ff05-f115-39571d94dfcd", {})
+                        if key.startswith("productPage_UAH_")), None)
 
     if not dynamic_key:
         raise Exception('Dynamic key not found in JSON data.')
@@ -117,12 +118,22 @@ def parse_product_page(url):
         else:
             return data
 
+    def get_images(json_path):
+        images = json_path("media", [])
+        if images:
+            first_image = images[0]
+            full_url = first_image.get("fullUrl")
+            if full_url:
+                return full_url
+        return None
+
     product_name = extract_product_name(json_path)
     description = extract_description(json_path)
     formatted_prices = extract_prices(json_path)
     weight_volume = extract_weight_volume(json_path)
     packaging_values = extract_packaging(json_path)
     additional_info_list = extract_additional_info(json_path)
+    image_urls = get_images(json_path)
 
     product_details = {
         "product name": clean_html_entities(product_name),
@@ -131,6 +142,7 @@ def parse_product_page(url):
         "weight_volume": clean_html_entities(weight_volume),
         "packaging": clean_html_entities(packaging_values),
         "additional_info": clean_html_entities(additional_info_list),
+        "images": clean_html_entities(image_urls),
     }
 
     cache["product_details"] = product_details

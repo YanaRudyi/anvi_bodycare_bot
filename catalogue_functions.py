@@ -34,6 +34,13 @@ def send_product_info(product_index):
     return message
 
 
+def get_image_for_product(product_index):
+    product_data = parse_product_page(get_product_page_links(shop_url)[product_index])
+    image_url = product_data.get('images', [])
+
+    return image_url
+
+
 def add_to_cart_button(product_index):
     add_to_cart_button = types.InlineKeyboardButton(
         text="🛒 Купити",
