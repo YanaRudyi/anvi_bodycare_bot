@@ -5,9 +5,7 @@ import cachetools
 import requests
 from bs4 import BeautifulSoup
 
-CLEANR = re.compile('<.*?>|&nbsp;|\t|\n|\r|<br\s*/?>')
 
-# Cache with an expiration time of 1 hour
 cache = cachetools.TTLCache(maxsize=1, ttl=3600)
 
 
@@ -102,8 +100,17 @@ def parse_product_page(url):
         "product", {}).get
 
     def clean_html(raw_html):
-        cleantext = re.sub(CLEANR, ' ', raw_html)
-        return cleantext
+        tag_replacements = {
+            '&nbsp;': ' ',
+            '<\/p>|<\/li>|<br>': '\n',
+            '<li>': '\n🔹 ',
+            '<strong>|<\/strong>|<p>|<ul>|<\/ul>|<u>|<\/u>': '',
+        }
+
+        for tag, replacement in tag_replacements.items():
+            raw_html = re.sub(tag, replacement, raw_html)
+
+        return raw_html.strip()
 
     def clean_html_entities(data):
         if isinstance(data, str):
