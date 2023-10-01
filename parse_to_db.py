@@ -1,5 +1,5 @@
 from product_details import get_product_page_links, parse_product_page
-import psycopg2
+import psycopg2.extras
 import os
 
 db_params = {
@@ -20,7 +20,8 @@ create_table_query = '''
         product_name TEXT,
         description TEXT,
         prices TEXT[],
-        weight_volume TEXT[]
+        weight_volume TEXT[],
+        availability BOOLEAN
     );
 '''
 
@@ -37,19 +38,39 @@ for link in product_page_links:
     product_details_list.append(product_info)
 
 for product_info in product_details_list:
-    print(product_info)
-    insert_query = '''
-        INSERT INTO product_details (product_name, description, prices, weight_volume)
-        VALUES (%s, %s, %s, %s)
-    '''
+    select_query = "SELECT COUNT(*) FROM product_details WHERE product_name = %s"
+    cur.execute(select_query, (product_info.get('product name', ''),))
+    count = cur.fetchone()[0]
 
-    cur.execute(insert_query, (
-        product_info.get('product name', ''),
-        product_info.get('description', ''),
-        product_info.get('prices', []),
-        product_info.get('weight_volume', []),
-    ))
+    if count == 0:
+        insert_query = '''
+            INSERT INTO product_details (product_name, description, prices, weight_volume, availability)
+            VALUES (%s, %s, %s, %s, %s)
+        '''
+
+        cur.execute(insert_query, (
+            product_info.get('product name', ''),
+            product_info.get('description', ''),
+            product_info.get('prices', []),
+            product_info.get('weight_volume', []),
+            True
+        ))
+    else:
+        update_query = 'UPDATE product_details SET availability = TRUE WHERE product_name = %s'
+        cur.execute(update_query, (product_info.get('product name', ''),))
 
 conn.commit()
+
+update_missing_query = '''
+    UPDATE product_details 
+    SET availability = FALSE 
+    WHERE product_name NOT IN %s
+'''
+
+cur.execute(update_missing_query, (tuple([product_info.get('product name', '')
+                                          for product_info in product_details_list]),))
+
+conn.commit()
+
 cur.close()
 conn.close()
