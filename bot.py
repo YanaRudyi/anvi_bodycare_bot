@@ -2,7 +2,8 @@ import os
 
 from telebot import types, TeleBot
 
-from catalogue_functions import create_product_buttons, send_product_info, add_to_cart_button, get_image_for_product
+from catalogue_functions import send_product_info, get_image_for_product
+from product_details import get_product_page_names
 
 shop_url = 'https://www.anvibodycare.com/shop'
 API_TOKEN = os.environ.get('ANVI_BOT_TOKEN')
@@ -89,6 +90,33 @@ def provide_product_details(call):
     bot.send_photo(call.message.chat.id, photo=image_url)
     bot.send_message(call.message.chat.id, product_info_message, parse_mode='HTML',
                      reply_markup=add_to_cart_markup)
+
+
+def create_product_buttons():
+    product_buttons = []
+    names = get_product_page_names(shop_url)
+
+    for index, product_name in enumerate(names):
+        product_buttons.append(
+            types.InlineKeyboardButton(
+                text=product_name,
+                callback_data=f"product_{index}"
+            )
+        )
+
+    return product_buttons
+
+
+def add_to_cart_button(product_index):
+    add_to_cart_button = types.InlineKeyboardButton(
+        text="🛒 Купити",
+        callback_data=f"add_to_cart_{product_index}"
+    )
+
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(add_to_cart_button)
+
+    return markup
 
 
 bot.polling()
