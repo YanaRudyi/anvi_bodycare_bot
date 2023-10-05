@@ -1,12 +1,8 @@
-import json
 import re
-
-import cachetools
-import requests
+import json
 from bs4 import BeautifulSoup
-
-
-cache = cachetools.TTLCache(maxsize=1, ttl=3600)
+import requests
+import cachetools
 
 
 def get_product_page_links(shop_url):
@@ -28,133 +24,140 @@ def get_product_page_links(shop_url):
     return []
 
 
+cache = cachetools.TTLCache(maxsize=1, ttl=3600)
+
+
 def parse_product_page(url):
-    def extract_product_name(json_path):
-        return json_path("name")
-
-    def extract_description(json_path):
-        return json_path("description")
-
-    def extract_prices(json_path):
-        product_items = json_path("productItems", [])
-        formatted_prices = [item.get("formattedPrice") for
-                            item in product_items]
-        return formatted_prices
-
-    def extract_weight_volume(json_path):
-        options_list = json_path("options", [])
-        weight_volume = []
-        for option in options_list[:1]:
-            if "selections" in option and isinstance(
-                    option["selections"], list):
-                for selection in option["selections"]:
-                    if "key" in selection:
-                        weight_volume.append(selection["key"])
-        return weight_volume
-
-    def extract_packaging(json_path):
-        options_list = json_path("options", [])
-        packaging_values = []
-        if len(options_list) > 1:
-            second_option = options_list[1]
-            if "selections" in second_option and isinstance(
-                    second_option["selections"], list):
-                for selection in second_option["selections"]:
-                    if "value" in selection:
-                        packaging_values.append(selection["value"])
-        return packaging_values
-
-    def extract_additional_info(json_path):
-        additional_info_list = json_path("additionalInfo", [])
-        for info in additional_info_list:
-            info.pop("id", None)
-            info.pop("index", None)
-        return additional_info_list
-
     response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
 
-    if response.status_code != 200:
-        raise Exception(f"Failed to retrieve product page: {url}")
+    product_name = extract_product_name(soup)
+    weight_options = extract_weight_options(url)
+    packaging_options = extract_packaging_options(url)
+    prices = extract_pricing_options(url)
+    image_link = extract_image_link(soup)
+    description = extract_product_description(url)
 
-    soup = BeautifulSoup(response.content, "html.parser")
-    script_tag = soup.find("script", {
-        "type": "application/json", "id": "wix-warmup-data"
-    })
-
-    if not script_tag:
-        raise Exception('Script tag not found.')
-
-    json_data = json.loads(script_tag.string)
-    dynamic_key = next((key for key in json_data.get(
-        "appsWarmupData", {}).get(
-        "1380b703-ce81-ff05-f115-39571d94dfcd", {})
-                        if key.startswith("productPage_UAH_")), None)
-
-    if not dynamic_key:
-        raise Exception('Dynamic key not found in JSON data.')
-
-    json_path = json_data.get("appsWarmupData", {}).get(
-        "1380b703-ce81-ff05-f115-39571d94dfcd", {}).get(
-        dynamic_key, {}).get(
-        "catalog").get(
-        "product", {}).get
-
-    def clean_html(raw_html):
-        tag_replacements = {
-            '&nbsp;': ' ',
-            '<\/p>|<\/li>|<br>': '\n',
-            '<li>': '\n🔹 ',
-            '<strong>|<\/strong>|<p>|<ul>|<\/ul>|<u>|<\/u>': '',
-        }
-
-        for tag, replacement in tag_replacements.items():
-            raw_html = re.sub(tag, replacement, raw_html)
-
-        return raw_html.strip()
-
-    def clean_html_entities(data):
-        if isinstance(data, str):
-            return clean_html(data)
-        elif isinstance(data, list):
-            return [clean_html_entities(item) for item in data]
-        elif isinstance(data, dict):
-            cleaned_dict = {}
-            for key, value in data.items():
-                cleaned_dict[key] = clean_html_entities(value)
-            return cleaned_dict
-        else:
-            return data
-
-    def get_images(json_path):
-        images = json_path("media", [])
-        if images:
-            first_image = images[0]
-            full_url = first_image.get("fullUrl")
-            if full_url:
-                return full_url
-        return None
-
-    product_name = extract_product_name(json_path)
-    description = extract_description(json_path)
-    formatted_prices = extract_prices(json_path)
-    weight_volume = extract_weight_volume(json_path)
-    packaging_values = extract_packaging(json_path)
-    additional_info_list = extract_additional_info(json_path)
-    image_urls = get_images(json_path)
+    cleaned_description = clean_html(description)
 
     product_details = {
-        "product name": clean_html_entities(product_name),
-        "description": clean_html_entities(description),
-        "prices": clean_html_entities(formatted_prices),
-        "weight_volume": clean_html_entities(weight_volume),
-        "packaging": clean_html_entities(packaging_values),
-        "additional_info": clean_html_entities(additional_info_list),
-        "images": clean_html_entities(image_urls),
+        "product name": product_name,
+        "images": image_link,
+        "packaging options": packaging_options,
+        "weight options": weight_options,
+        "price": prices,
+        "description": cleaned_description
     }
 
     cache["product_details"] = product_details
 
     return product_details
+
+
+def extract_product_name(soup):
+    product_name_element = soup.find("h1", class_="product_title")
+    if product_name_element:
+        return product_name_element.text.strip()
+    else:
+        return None
+
+
+def extract_weight_options(webpage_url):
+    response = requests.get(webpage_url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    select_element = soup.find('select', {'name': 'attribute_pa_vaha'})
+    if not select_element:
+        return None
+    option_elements = select_element.find_all('option')
+    weight_options = [
+        option.text.strip()
+        for option in option_elements
+        if option.text.strip() != 'Виберіть опцію'
+    ]
+    return weight_options
+
+
+def extract_packaging_options(webpage_url):
+    response = requests.get(webpage_url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    option_elements = soup.select('select[name="attribute_pa_pakuvannia"] option')
+    packaging_options = [
+        option.text.strip()
+        for option in option_elements
+        if option.text.strip() != 'Виберіть опцію'
+    ]
+
+    if not packaging_options:
+        return None
+    return packaging_options
+
+
+def extract_pricing_options(webpage_url):
+    response = requests.get(webpage_url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    pricing_options = []
+
+    price_element = soup.find('span', class_='woocommerce-Price-amount amount')
+
+    if price_element:
+        price_text = price_element.get_text(strip=True)
+        pricing_options.append(price_text)
+
+    form_element = soup.find('form', class_='variations_form')
+
+    if form_element:
+        product_variations = form_element.get('data-product_variations')
+
+        if product_variations:
+            variations_data = json.loads(product_variations)
+
+            for variation in variations_data:
+                option_text = variation.get('attributes', {}).get('attribute_pa_vaha', '')
+                pakuvannia_text = variation.get('attributes', {}).get('attribute_pa_pakuvannia', '')
+                price_html = variation.get('price_html', '')
+
+                if option_text and price_html and pakuvannia_text:
+                    price_match = re.search(r'([\d.,]+)', price_html)
+                    if price_match:
+                        price_text = price_match.group(1)
+                        pricing_options.append([option_text, pakuvannia_text, price_text])
+
+    return pricing_options
+
+
+def extract_image_link(soup):
+    image_element = soup.find("img", class_="wp-post-image")
+    if image_element and "src" in image_element.attrs:
+        return image_element["src"]
+    else:
+        return None
+
+
+def extract_product_description(webpage_url):
+    response = requests.get(webpage_url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    description_element = soup.find('div', class_='woo-product-desc-block')
+    if description_element:
+        description = str(description_element)
+        return description.strip()
+    else:
+        return None
+
+
+def clean_html(raw_html):
+    tag_replacements = {
+        r'&nbsp;': ' ',
+        r'<\/p>|<\/li>|<br>': '\n',
+        r'<li>': '\n🌿 ',
+        r'<strong>|<\/strong>|<p>|<ul>|<\/ul>|<u>|<\/u>': '',
+        r'<[^>]*>': '',
+    }
+
+    for tag, replacement in tag_replacements.items():
+        raw_html = re.sub(tag, replacement, raw_html)
+
+    return raw_html.strip()
 
 
 if __name__ == "__main__":
