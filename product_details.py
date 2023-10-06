@@ -1,30 +1,49 @@
-import re
 import json
-from bs4 import BeautifulSoup
-import requests
+import re
+
 import cachetools
-
-
-def get_product_page_links(shop_url):
-    product_page_links = {}
-
-    response = requests.get(shop_url)
-
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.content, 'html.parser')
-        product_links = soup.find_all('a', href=True)
-
-        for link in product_links:
-            product_page_url = link['href']
-            if 'product-page' in product_page_url:
-                product_page_links[product_page_url] = True
-
-        return list(product_page_links.keys())
-
-    return []
-
+import requests
+from bs4 import BeautifulSoup
 
 cache = cachetools.TTLCache(maxsize=1, ttl=3600)
+
+
+def collect_data_from_url(url, f):
+    product_links = []
+    page_number = 1
+
+    while True:
+        current_url = f"{url}/page/{page_number}/"
+
+        response = requests.get(current_url)
+
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, "html.parser")
+
+            product_elements = soup.find_all("a", class_="woocommerce-LoopProduct-link woocommerce-loop-product__link")
+            for product_element in product_elements:
+                product_links.append(f(product_element))
+
+            next_page_link = soup.find('a', class_="next page-number")
+            if next_page_link:
+                page_number += 1
+            else:
+                break
+
+
+        else:
+            print("Вибачте, ми маємо певні тимчасові проблеми. Будь ласка, спробуйте знову")
+            break
+
+    return product_links
+
+
+def get_product_page_links(url):
+    return collect_data_from_url(url, lambda product_element: product_element['href'])
+
+
+def get_product_page_names(url):
+    return collect_data_from_url(url, lambda product_element: product_element.text)
 
 
 def parse_product_page(url):
