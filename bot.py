@@ -5,34 +5,24 @@ from telebot import types, TeleBot
 from catalogue_functions import send_product_info, get_image_for_product
 from product_details import get_product_page_names
 
+from writing_questions_to_spreadsheet import write_to_spreadsheet
+
 shop_url = 'https://www.anvibodycare.com/shop'
 API_TOKEN = os.environ.get('ANVI_BOT_TOKEN')
 bot = TeleBot(API_TOKEN)
 
-main_menu_keyboard = types.InlineKeyboardMarkup(row_width=1)
-product_catalog_button = types.InlineKeyboardButton(
-    "🛍️ Каталог продуктів", callback_data="catalog"
-)
-about_us_button = types.InlineKeyboardButton(
-    "🏢 Про нас", callback_data="about_us"
-)
-contact_us_button = types.InlineKeyboardButton(
-    "📞 Контакти", callback_data="contact_us"
-)
-search_button = types.InlineKeyboardButton(
-    "🔍 Пошук", callback_data="search"
-)
-help_button = types.InlineKeyboardButton(
-    "👋 Допомога", callback_data="help"
-)
+main_menu_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+product_catalog_button = types.KeyboardButton("🛍️ Товари")
+about_us_button = types.KeyboardButton("🏢 Про нас")
+contact_us_button = types.KeyboardButton("📞 Наші контакти")
+search_button = types.KeyboardButton("🔍 Пошук")
+help_button = types.KeyboardButton("👋 Допомога")
 
-main_menu_keyboard.add(
-    product_catalog_button,
-    about_us_button,
-    contact_us_button,
-    search_button,
-    help_button
-)
+main_menu_keyboard.row(product_catalog_button)
+main_menu_keyboard.row(about_us_button)
+main_menu_keyboard.row(contact_us_button)
+main_menu_keyboard.row(search_button)
+main_menu_keyboard.row(help_button)
 
 
 @bot.message_handler(commands=['start'])
@@ -41,43 +31,45 @@ def send_main_menu(message):
                      reply_markup=main_menu_keyboard)
 
 
-@bot.callback_query_handler(func=lambda call: call.data == "help")
-def provide_help(call):
-    bot.send_message(call.message.chat.id, "Будь ласка, залишіть ваші дані і ми вам зателефонуємо")
+help_requested = {}
 
 
-@bot.callback_query_handler(func=lambda call: call.data == "search")
-def provide_search(call):
-    bot.send_message(call.message.chat.id, "Введіть параметри запиту:")
+@bot.message_handler(func=lambda message: message.text == "👋 Допомога")
+def provide_help(message):
+    user_id = message.chat.id
+    bot.send_message(user_id, "Будь ласка, залиште ваші дані і повідомлення і ми вам зателефонуємо")
+    help_requested[user_id] = True
 
 
-@bot.callback_query_handler(func=lambda call: call.data == "contact_us")
-def provide_contact_info(call):
-    bot.send_message(call.message.chat.id, "Ви можете зв'язатись з нами через anvibodycare@gmail.com.")
+@bot.message_handler(func=lambda message: help_requested.get(message.chat.id, False) and message.text != "🛍️ Product Catalog")
+def handle_message(message):
+    if message.chat.id in help_requested:
+        write_to_spreadsheet(message)
+        bot.send_message(message.chat.id, "Дякуємо! Ми скоро з Вами зв'яжемось.")
+        del help_requested[message.chat.id]
 
 
-@bot.callback_query_handler(func=lambda call: call.data == "about_us")
-def provide_about_us_info(call):
-    bot.send_message(call.message.chat.id, "Ми Anvi. Турбота про ваше тіло – наша головна мета!")
+@bot.message_handler(func=lambda message: message.text == "🔍 Пошук")
+def provide_search(message):
+    bot.send_message(message.chat.id, "Введіть параметри запиту:")
 
 
-@bot.message_handler(commands=['start'])
-def send_catalog_menu(message):
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    catalog_button = types.InlineKeyboardButton(
-        text="🛍️ Каталог продуктів",
-        callback_data="catalog"
-    )
-    markup.add(catalog_button)
-    bot.send_message(message.chat.id, reply_markup=markup)
+@bot.message_handler(func=lambda message: message.text == "📞 Наші контакти")
+def provide_contact_info(message):
+    bot.send_message(message.chat.id, "Ви можете зв'язатись з нами через anvibodycare@gmail.com.")
 
 
-@bot.callback_query_handler(func=lambda call: call.data == "catalog")
-def show_product_catalog(call):
+@bot.message_handler(func=lambda message: message.text == "🏢 Про нас")
+def provide_about_us_info(message):
+    bot.send_message(message.chat.id, "Ми Anvi. Турбота про ваше тіло – наша головна мета!")
+
+
+@bot.message_handler(func=lambda message: message.text == "🛍️ Товари")
+def show_product_catalog(message):
     product_buttons = create_product_buttons()
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(*product_buttons)
-    bot.send_message(call.message.chat.id, "Оберіть продукт:", reply_markup=markup)
+    bot.send_message(message.chat.id, "Оберіть товар:", reply_markup=markup)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("product_"))
