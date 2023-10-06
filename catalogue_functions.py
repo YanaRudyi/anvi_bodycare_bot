@@ -1,3 +1,4 @@
+import re
 from product_details import get_product_page_links, parse_product_page
 
 shop_url = 'https://www.anvibodycare.com/shop'
@@ -5,6 +6,7 @@ shop_url = 'https://www.anvibodycare.com/shop'
 
 def send_product_info(product_index):
     product_data = parse_product_page(get_product_page_links(shop_url)[product_index])
+    # print(product_data)
     product_name = product_data.get('product name', 'N/A')
     description = product_data.get('description', 'N/A')
     message = f"{product_name}\n\n"
@@ -31,3 +33,25 @@ def get_image_for_product(product_index):
 
     return image_url
 
+
+def get_product_info(product_index):
+    product_data = parse_product_page(get_product_page_links(shop_url)[product_index])
+
+    product_name = product_data['product name']
+
+    if len(product_data['price']) == 1:
+        product_price = int(re.sub(r'[^0-9]', '', product_data['price'][0]))
+    else:
+        product_price = sorted(product_data['price'][1:], key=lambda x: x[2])
+
+    product_packaging_options = product_data['packaging options']
+    product_weight_options = product_data['weight options']
+
+    product_info = {
+        'product name': product_name,
+        'product price': product_price,
+        'packaging options': product_packaging_options,
+        'weight options': product_weight_options
+    }
+
+    return product_info
