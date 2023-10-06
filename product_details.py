@@ -5,7 +5,7 @@ import cachetools
 import requests
 from bs4 import BeautifulSoup
 
-cache = cachetools.TTLCache(maxsize=1, ttl=3600)
+cache = cachetools.TTLCache(maxsize=100, ttl=3600)
 
 
 def collect_data_from_url(url, f):
@@ -39,14 +39,32 @@ def collect_data_from_url(url, f):
 
 
 def get_product_page_links(url):
-    return collect_data_from_url(url, lambda product_element: product_element['href'])
+    if "product_page_links" in cache:
+        return cache["product_page_links"]
+    else:
+        product_page_links = collect_data_from_url(url, lambda product_element: product_element['href'])
+        cache["product_page_links"] = product_page_links
+        return product_page_links
 
 
 def get_product_page_names(url):
-    return collect_data_from_url(url, lambda product_element: product_element.text)
+    if "product_page_names" in cache:
+        return cache["product_page_names"]
+    else:
+        product_page_names = collect_data_from_url(url, lambda product_element: product_element.text)
+        cache["product_page_names"] = product_page_names
+        return product_page_names
 
 
 def parse_product_page(url):
+    cache_key = f"product_details_{url}"
+
+    if cache_key in cache:
+        return cache[cache_key]
+
+    if "product_details" in cache:
+        return cache["product_details"]
+
     response = requests.get(url)
     soup = BeautifulSoup(response.text, 'html.parser')
 
@@ -68,7 +86,7 @@ def parse_product_page(url):
         "description": cleaned_description
     }
 
-    cache["product_details"] = product_details
+    cache[cache_key] = product_details
 
     return product_details
 
