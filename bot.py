@@ -4,6 +4,7 @@ from telebot import types, TeleBot
 from catalogue_functions import send_product_info, get_image_for_product, get_product_info
 from product_details import get_product_page_names
 from writing_questions_to_spreadsheet import write_to_spreadsheet
+from database_setup import connect, create_orders_table, close_connection
 
 shop_url = 'https://www.anvibodycare.com/shop'
 API_TOKEN = os.environ.get('ANVI_BOT_TOKEN')
@@ -30,6 +31,13 @@ def send_main_menu(message):
     bot.send_message(message.chat.id, "Вітаємо в Anvi! Як ми можемо допомогти вам сьогодні?",
                      reply_markup=main_menu_keyboard)
 
+
+create_orders_table()
+
+insert_order_query = """
+INSERT INTO orders (user_id, products, contact_name, contact_phone)
+VALUES (%s, %s, %s, %s);
+"""
 
 help_requested = {}
 shopping_cart = {}
@@ -90,14 +98,15 @@ def show_shopping_cart(message):
                 cart_text += \
                     f"- <b>{product_name}</b> ({weight_option}, {packaging_option}): <b>{product_price} грн\n</b>"
             else:
-                cart_text += f"- {product_name}: {product_price} грн\n"
+                cart_text += f"- <b>{product_name}</b>: {product_price} грн\n"
             total_price += product_price
 
         cart_text += f"\n🚚 Загальна сума: {total_price} грн"
 
         markup = types.InlineKeyboardMarkup()
+        order_button = types.InlineKeyboardButton("🛍️ Оформити замовлення", callback_data="order")
         clear_cart_button = types.InlineKeyboardButton("🗑️ Очистити кошик", callback_data="clear_cart")
-        markup.add(clear_cart_button)
+        markup.add(order_button, clear_cart_button)
 
         bot.send_message(user_id, cart_text, parse_mode='HTML', reply_markup=markup)
     else:
@@ -204,6 +213,46 @@ def handle_clear_cart(call):
     if user_id in shopping_cart:
         del shopping_cart[user_id]
     bot.send_message(user_id, '🗑️ Кошик очищено')
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "order")
+def start_ordering_process(call):
+    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
+    contact_button = types.KeyboardButton(text="📱 Відправити контакт", request_contact=True)
+    cancel_button = types.KeyboardButton(text="❌ Відмінити")
+    markup.add(contact_button, cancel_button)
+
+    bot.send_message(call.message.chat.id,
+                     text='Для оформлення замовлення, натисніть "📱 Відправити контакт" '
+                          'для надання контактних даних або "❌ Відмінити" для скасування.',
+                     reply_markup=markup)
+
+
+@bot.message_handler(content_types=['contact'])
+def handle_contact(call):
+    conn = connect()
+    cursor = conn.cursor()
+    user_id = call.from_user.id
+    contact_name = call.contact.first_name
+    contact_phone = call.contact.phone_number
+
+    user_shopping_cart = []
+    for item in shopping_cart[user_id]:
+        user_shopping_cart.extend(item.values())
+    user_shopping_cart = ', '.join(map(str, user_shopping_cart))
+
+    cursor.execute(insert_order_query, (user_id, user_shopping_cart, contact_name, contact_phone))
+    conn.commit()
+    cursor.close()
+    close_connection(conn)
+
+    bot.send_message(user_id, "Ваше замовлення було прийнято!")
+
+
+@bot.message_handler(func=lambda message: message.text == "❌ Відмінити")
+def cancel_order(message):
+    user_id = message.chat.id
+    bot.send_message(user_id, "Замовлення скасовано", reply_markup=main_menu_keyboard)
 
 
 def create_product_buttons():
