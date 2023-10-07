@@ -10,7 +10,7 @@ shop_url = 'https://www.anvibodycare.com/shop'
 API_TOKEN = os.environ.get('ANVI_BOT_TOKEN')
 bot = TeleBot(API_TOKEN)
 
-main_menu_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+main_menu_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
 product_catalog_button = types.KeyboardButton("🛍️ Товари")
 about_us_button = types.KeyboardButton("🏢 Про нас")
 contact_us_button = types.KeyboardButton("📞 Наші контакти")
@@ -18,11 +18,8 @@ contact_us_button = types.KeyboardButton("📞 Наші контакти")
 help_button = types.KeyboardButton("👋 Допомога")
 shopping_cart_button = types.KeyboardButton("🛒 Кошик")
 
-main_menu_keyboard.row(product_catalog_button)
-main_menu_keyboard.row(about_us_button)
-main_menu_keyboard.row(contact_us_button)
-# main_menu_keyboard.row(search_button)
-main_menu_keyboard.row(help_button)
+main_menu_keyboard.row(product_catalog_button, about_us_button)
+main_menu_keyboard.row(contact_us_button, help_button)
 main_menu_keyboard.row(shopping_cart_button)
 
 
@@ -51,7 +48,7 @@ def provide_help(message):
 
 
 @bot.message_handler(
-    func=lambda message: help_requested.get(message.chat.id, False) and message.text != "🛍️ Product Catalog")
+    func=lambda message: help_requested.get(message.chat.id, False) and message.text != "🛍️ Товари")
 def handle_message(message):
     if message.chat.id in help_requested:
         write_to_spreadsheet(message)
