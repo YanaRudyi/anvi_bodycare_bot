@@ -243,7 +243,9 @@ def handle_contact(call):
     cursor.close()
     close_connection(conn)
 
-    bot.send_message(user_id, "Ваше замовлення було прийнято!")
+    del shopping_cart[user_id]
+
+    bot.send_message(user_id, "Ваше замовлення було прийнято!", reply_markup=main_menu_keyboard)
 
 
 @bot.message_handler(func=lambda message: message.text == "❌ Відмінити")
