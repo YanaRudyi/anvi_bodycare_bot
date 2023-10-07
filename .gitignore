@@ -81,3 +81,4 @@ cython_debug/
 .idea/
 /product_data.csv
 /product_details.json
+/docker-compose.yaml
