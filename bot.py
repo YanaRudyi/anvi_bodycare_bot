@@ -131,6 +131,7 @@ def provide_product_details(call):
 @bot.callback_query_handler(func=lambda call: call.data.startswith(("buy_", "buy2_")))
 def handle_buy_button(call):
     product_index = int(call.data.split("_")[1])
+    product_name = get_product_info(product_index)['product name']
     if call.data.startswith("buy_"):
         markup = types.InlineKeyboardMarkup(row_width=3)
         weight_options = get_product_info(product_index)['weight options']
@@ -141,9 +142,9 @@ def handle_buy_button(call):
                      f"{int(get_product_info(product_index)['product price'][weight_index * 2][2])}₴",
                 callback_data=f'weight_{product_index}_{weight_index}'
             ))
-        bot.send_message(call.message.chat.id, "Оберіть вагу:", parse_mode='HTML', reply_markup=markup)
+        bot.send_message(call.message.chat.id, f"Оберіть вагу для товару <b>\"{product_name}\"</b>:",
+                         parse_mode='HTML', reply_markup=markup)
     else:
-        product_name = get_product_info(product_index)['product name']
         product_price = int(get_product_info(product_index)['product price'])
 
         user_id = call.from_user.id
@@ -164,6 +165,7 @@ def handle_weight_button(call):
     product_index = int(call.data.split("_")[1])
     weight_index = int(call.data.split("_")[2])
     markup = types.InlineKeyboardMarkup(row_width=2)
+    product_name = get_product_info(product_index)['product name']
     packaging_options = get_product_info(product_index)['packaging options']
 
     weight_price = int(get_product_info(product_index)['product price'][weight_index * 2][2])
@@ -175,7 +177,8 @@ def handle_weight_button(call):
             text=f"{packaging_option.capitalize()} {'+' + str(price_difference) + '₴' if price_difference > 0 else ''}",
             callback_data=f'packaging_{product_index}_{weight_index}_{packaging_index}'
         ))
-    bot.send_message(call.message.chat.id, "Оберіть пакування:", parse_mode='HTML', reply_markup=markup)
+    bot.send_message(call.message.chat.id, f"Оберіть пакування для товару <b>\"{product_name}\"</b>:",
+                     parse_mode='HTML', reply_markup=markup)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("packaging_"))
