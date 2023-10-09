@@ -17,11 +17,10 @@ creds = service_account.Credentials.from_service_account_info(
 service = build('sheets', 'v4', credentials=creds)
 
 
-def write_to_spreadsheet(message):
+def write_to_spreadsheet(help_info):
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    username = message.from_user.username if message.from_user.username else "N/A"
 
-    values = [[current_time, username, message.text]]
+    values = [[current_time, help_info['first_name'], help_info['phone_number'], help_info['message']]]
     body = {'values': values}
 
     result = service.spreadsheets().values().append(

@@ -14,7 +14,7 @@ main_menu_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2
 product_catalog_button = types.KeyboardButton("🛍️ Товари")
 about_us_button = types.KeyboardButton("🏢 Про нас")
 contact_us_button = types.KeyboardButton("📞 Наші контакти")
-# search_button = types.KeyboardButton("🔍 Пошук")
+search_button = types.KeyboardButton("🔍 Пошук")
 help_button = types.KeyboardButton("👋 Допомога")
 shopping_cart_button = types.KeyboardButton("🛒 Кошик")
 
@@ -36,24 +36,43 @@ INSERT INTO orders (user_id, products, contact_name, contact_phone)
 VALUES (%s, %s, %s, %s);
 """
 
-help_requested = {}
 shopping_cart = {}
+help_info = {}
+order_process_started = {}
 
 
 @bot.message_handler(func=lambda message: message.text == "👋 Допомога")
 def provide_help(message):
     user_id = message.chat.id
-    bot.send_message(user_id, "Будь ласка, залиште ваші дані і повідомлення і ми вам зателефонуємо")
-    help_requested[user_id] = True
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    contact_button = types.KeyboardButton(text="📱 Відправити контакт", request_contact=True)
+    cancel_button = types.KeyboardButton(text="❌ Відмінити")
+    markup.add(contact_button, cancel_button)
+    help_info[user_id] = {}
+    help_info[user_id]['help_requested'] = True
+    bot.send_message(user_id, "Для подачі заяви про допомогу, натисніть \"📱 Відправити контакт\" для надання "
+                              "контактних даних або \"❌ Відмінити\" для скасування.",
+                     reply_markup=markup)
 
 
-@bot.message_handler(
-    func=lambda message: help_requested.get(message.chat.id, False) and message.text != "🛍️ Товари")
-def handle_message(message):
-    if message.chat.id in help_requested:
-        write_to_spreadsheet(message)
-        bot.send_message(message.chat.id, "Дякуємо! Ми скоро з Вами зв'яжемось.")
-        del help_requested[message.chat.id]
+@bot.message_handler(content_types=['contact'],
+                     func=lambda message: help_info.get(message.from_user.id, False))
+def handle_support_contact(message):
+    user_id = message.from_user.id
+    help_info[user_id]['first_name'] = message.contact.first_name
+    help_info[user_id]['phone_number'] = message.contact.phone_number
+    bot.send_message(user_id, "Залиште, будь ласка, повідомлення")
+
+
+@bot.message_handler(content_types=['text'],
+                     func=lambda message: help_info.get(message.chat.id, False) and message.text != "❌ Відмінити")
+def handle_support_message(message):
+    user_id = message.from_user.id
+    help_info[user_id]['message'] = message.text
+    write_to_spreadsheet(help_info[user_id])
+    del help_info[user_id]
+    bot.send_message(user_id, "Дякуємо за ваш запит. Ми зв'яжемося з Вами найближчим часом!",
+                     reply_markup=main_menu_keyboard)
 
 
 @bot.message_handler(func=lambda message: message.text == "🔍 Пошук")
@@ -217,18 +236,25 @@ def handle_clear_cart(call):
 
 @bot.callback_query_handler(func=lambda call: call.data == "order")
 def start_ordering_process(call):
-    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
-    contact_button = types.KeyboardButton(text="📱 Відправити контакт", request_contact=True)
-    cancel_button = types.KeyboardButton(text="❌ Відмінити")
-    markup.add(contact_button, cancel_button)
+    user_id = call.from_user.id
+    if user_id in shopping_cart and len(shopping_cart[user_id]) > 0:
+        order_process_started[user_id] = True
 
-    bot.send_message(call.message.chat.id,
-                     text='Для оформлення замовлення, натисніть "📱 Відправити контакт" '
-                          'для надання контактних даних або "❌ Відмінити" для скасування.',
-                     reply_markup=markup)
+        markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
+        contact_button = types.KeyboardButton(text="📱 Відправити контакт", request_contact=True)
+        cancel_button = types.KeyboardButton(text="❌ Відмінити")
+        markup.add(contact_button, cancel_button)
+
+        bot.send_message(call.message.chat.id,
+                         text='Для оформлення замовлення, натисніть "📱 Відправити контакт" '
+                              'для надання контактних даних або "❌ Відмінити" для скасування.',
+                         reply_markup=markup)
+    else:
+        bot.send_message(user_id, '❗Помилка: Ваш кошик порожній')
 
 
-@bot.message_handler(content_types=['contact'])
+@bot.message_handler(content_types=['contact'],
+                     func=lambda message: order_process_started.get(message.from_user.id, False))
 def handle_contact(call):
     conn = connect()
     cursor = conn.cursor()
@@ -246,15 +272,20 @@ def handle_contact(call):
     cursor.close()
     close_connection(conn)
 
-    del shopping_cart[user_id]
+    del shopping_cart[user_id], order_process_started[user_id]
 
     bot.send_message(user_id, "Ваше замовлення було прийнято!", reply_markup=main_menu_keyboard)
 
 
 @bot.message_handler(func=lambda message: message.text == "❌ Відмінити")
-def cancel_order(message):
-    user_id = message.chat.id
-    bot.send_message(user_id, "Замовлення скасовано", reply_markup=main_menu_keyboard)
+def handle_cancel_button(call):
+    user_id = call.chat.id
+    if user_id in order_process_started:
+        del order_process_started[user_id]
+        bot.send_message(user_id, "Замовлення скасовано", reply_markup=main_menu_keyboard)
+    if user_id in help_info:
+        del help_info[user_id]
+        bot.send_message(user_id, "Заява про отримання допомоги скасована", reply_markup=main_menu_keyboard)
 
 
 def create_product_buttons():
