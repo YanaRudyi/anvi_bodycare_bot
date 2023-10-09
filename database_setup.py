@@ -8,7 +8,14 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 def connect():
     try:
         print('Connecting to the PostgreSQL database...')
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = psycopg2.connect(
+            host=os.getenv('HOST'),
+            port=os.getenv('PORT'),
+            database=os.getenv('DATABASE'),
+            user=os.getenv('USER'),
+            password=os.getenv('DB_PASSWORD'),
+        )
+        print('Connected')
         return conn
     except (Exception, psycopg2.DatabaseError) as error:
         print(error)
