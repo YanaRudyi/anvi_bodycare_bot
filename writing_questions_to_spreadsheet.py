@@ -25,7 +25,52 @@ def write_to_spreadsheet(help_info):
 
     result = service.spreadsheets().values().append(
         spreadsheetId=spreadsheet_id,
-        range='Data',
+        range='Messages',
+        valueInputOption='RAW',
+        insertDataOption='INSERT_ROWS',
+        body=body
+    ).execute()
+
+    return result
+
+
+def write_order_to_spreadsheet(order_info, shopping_cart):
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    order_items = []
+    for item in shopping_cart:
+        product_name = item.get('product name', '')
+        weight_option = item.get('weight option', '')
+        packaging_option = item.get('packaging option', '')
+        product_price = item.get('product price', 0)
+
+        item_description = f"{product_name}"
+        if weight_option:
+            item_description += f" ({weight_option}"
+        if packaging_option:
+            if weight_option:
+                item_description += f", {packaging_option}"
+            else:
+                item_description += f" ({packaging_option}"
+        item_description += f") - {product_price} грн"
+
+        order_items.append(item_description)
+
+    cart_items_str = ', '.join(order_items)
+
+    values = [[
+        current_time,
+        order_info['first_name'],
+        order_info['phone_number'],
+        cart_items_str,
+        order_info['message']
+    ]]
+
+    body = {'values': values}
+
+    result = service.spreadsheets().values().append(
+        spreadsheetId=spreadsheet_id,
+        range='Orders',
         valueInputOption='RAW',
         insertDataOption='INSERT_ROWS',
         body=body
