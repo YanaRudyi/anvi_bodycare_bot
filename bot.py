@@ -30,7 +30,7 @@ def send_main_menu(message):
                      reply_markup=main_menu_keyboard)
 
 
-#create_orders_table()
+create_orders_table()
 
 insert_order_query = """
 INSERT INTO orders (user_id, products, contact_name, contact_phone)
