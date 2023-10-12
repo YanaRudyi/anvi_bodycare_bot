@@ -183,6 +183,9 @@ def extract_product_description(webpage_url):
 
 
 def clean_html(raw_html):
+    if raw_html is None:
+        return ''
+
     tag_replacements = {
         r'&nbsp;': ' ',
         r'<\/p>|<\/li>|<br>': '\n',
