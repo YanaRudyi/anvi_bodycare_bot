@@ -1,4 +1,5 @@
 import os
+
 from telebot import types, TeleBot
 
 from catalogue_functions import send_product_info, get_image_for_product, get_product_info
@@ -92,10 +93,65 @@ def provide_about_us_info(message):
 
 @bot.message_handler(func=lambda message: message.text == "🛍️ Товари")
 def show_product_catalog(message):
-    product_buttons = create_product_buttons()
+    category_buttons = create_category_buttons()
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(*category_buttons)
+    bot.send_message(message.chat.id, "Оберіть категорію:", reply_markup=markup)
+
+
+def create_category_buttons():
+    categories = ['Тіло', 'Обличчя', 'Волосся']
+    category_buttons = []
+
+    for category in categories:
+        category_buttons.append(
+            types.InlineKeyboardButton(
+                text=category,
+                callback_data=f'category_{category.lower()}'
+            )
+        )
+
+    return category_buttons
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("category_"))
+def show_products_for_category(call):
+    selected_category = call.data.split("_")[1]
+    url, products = get_products_for_category(selected_category)
+    product_buttons = create_product_buttons(url)
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(*product_buttons)
-    bot.send_message(message.chat.id, "Оберіть товар:", reply_markup=markup)
+
+    bot.send_message(call.message.chat.id, f"Оберіть товар у категорії {selected_category.title()}:", reply_markup=markup)
+
+
+def get_products_for_category(category):
+    if category in 'тіло':
+        url = 'https://anvibodycare.com/product-category/tilo/'
+        products = get_product_page_names(url)
+    elif category in 'обличчя':
+        url = 'https://anvibodycare.com/product-category/oblychchia/'
+        products = get_product_page_names(url)
+    elif category in 'волосся':
+        url = 'https://anvibodycare.com/product-category/volossia/'
+        products = get_product_page_names(url)
+
+    return url, products
+
+
+def create_product_buttons(url):
+    product_buttons = []
+    names = get_product_page_names(url)
+
+    for index, product_name in enumerate(names):
+        product_buttons.append(
+            types.InlineKeyboardButton(
+                text=product_name,
+                callback_data=f"product_{index}"
+            )
+        )
+
+    return product_buttons
 
 
 @bot.message_handler(func=lambda message: message.text == "🛒 Кошик")
@@ -305,21 +361,6 @@ def handle_cancel_button(call):
     if user_id in help_info:
         del help_info[user_id]
         bot.send_message(user_id, "Заява про отримання допомоги скасована", reply_markup=main_menu_keyboard)
-
-
-def create_product_buttons():
-    product_buttons = []
-    names = get_product_page_names(shop_url)
-
-    for index, product_name in enumerate(names):
-        product_buttons.append(
-            types.InlineKeyboardButton(
-                text=product_name,
-                callback_data=f"product_{index}"
-            )
-        )
-
-    return product_buttons
 
 
 bot.infinity_polling()
