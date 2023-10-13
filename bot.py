@@ -1,15 +1,14 @@
-import os
+from telebot import types
 
-from telebot import types, TeleBot
-
-from catalogue_functions import send_product_info, get_image_for_product, get_product_info
-from database_setup import connect, create_orders_table, close_connection
-from product_details import get_product_page_names
+from bot_cfg import bot
+from catalogue_functions import build_product_info
+from database_setup import connect, close_connection, create_orders_table
+from handler.category_handler import create_category_buttons
+from handler.product_handler import product_identifier_map
+from product_details import parse_product_page
 from writing_questions_to_spreadsheet import write_to_spreadsheet
 
 shop_url = 'https://www.anvibodycare.com/shop'
-API_TOKEN = os.environ.get('ANVI_BOT_TOKEN')
-bot = TeleBot(API_TOKEN)
 
 main_menu_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
 product_catalog_button = types.KeyboardButton("🛍️ Товари")
@@ -30,7 +29,7 @@ def send_main_menu(message):
                      reply_markup=main_menu_keyboard)
 
 
-create_orders_table()
+# create_orders_table()
 
 insert_order_query = """
 INSERT INTO orders (user_id, products, contact_name, contact_phone)
@@ -99,61 +98,6 @@ def show_product_catalog(message):
     bot.send_message(message.chat.id, "Оберіть категорію:", reply_markup=markup)
 
 
-def create_category_buttons():
-    categories = ['Тіло', 'Обличчя', 'Волосся']
-    category_buttons = []
-
-    for category in categories:
-        category_buttons.append(
-            types.InlineKeyboardButton(
-                text=category,
-                callback_data=f'category_{category.lower()}'
-            )
-        )
-
-    return category_buttons
-
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("category_"))
-def show_products_for_category(call):
-    selected_category = call.data.split("_")[1]
-    url, products = get_products_for_category(selected_category)
-    product_buttons = create_product_buttons(url)
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(*product_buttons)
-
-    bot.send_message(call.message.chat.id, f"Оберіть товар у категорії {selected_category.title()}:", reply_markup=markup)
-
-
-def get_products_for_category(category):
-    if category in 'тіло':
-        url = 'https://anvibodycare.com/product-category/tilo/'
-        products = get_product_page_names(url)
-    elif category in 'обличчя':
-        url = 'https://anvibodycare.com/product-category/oblychchia/'
-        products = get_product_page_names(url)
-    elif category in 'волосся':
-        url = 'https://anvibodycare.com/product-category/volossia/'
-        products = get_product_page_names(url)
-
-    return url, products
-
-
-def create_product_buttons(url):
-    product_buttons = []
-    names = get_product_page_names(url)
-
-    for index, product_name in enumerate(names):
-        product_buttons.append(
-            types.InlineKeyboardButton(
-                text=product_name,
-                callback_data=f"product_{index}"
-            )
-        )
-
-    return product_buttons
-
-
 @bot.message_handler(func=lambda message: message.text == "🛒 Кошик")
 def show_shopping_cart(message):
     user_id = message.chat.id
@@ -185,42 +129,26 @@ def show_shopping_cart(message):
         bot.send_message(user_id, '🛒 Кошик порожній')
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith("product_"))
-def provide_product_details(call):
-    product_index = int(call.data.split("_")[1])
-    product_info_message = send_product_info(product_index)
-
-    buy_button = types.InlineKeyboardButton(
-        text="🛒 Купити",
-        callback_data=f"buy_{product_index}" if not isinstance(get_product_info(product_index)['product price'], int)
-        else f"buy2_{product_index}"
-    )
-    markup = types.InlineKeyboardMarkup()
-    markup.add(buy_button)
-
-    image_url = get_image_for_product(product_index)
-    bot.send_photo(call.message.chat.id, photo=image_url)
-    bot.send_message(call.message.chat.id, product_info_message, parse_mode='HTML', reply_markup=markup)
-
-
 @bot.callback_query_handler(func=lambda call: call.data.startswith(("buy_", "buy2_")))
 def handle_buy_button(call):
-    product_index = int(call.data.split("_")[1])
-    product_name = get_product_info(product_index)['product name']
+    product_hash = int(call.data.split("_")[1])
+    product = product_identifier_map.get(product_hash)
+    product_info = build_product_info(parse_product_page(product.url))
+    product_name = product_info['product name']
     if call.data.startswith("buy_"):
         markup = types.InlineKeyboardMarkup(row_width=3)
-        weight_options = get_product_info(product_index)['weight options']
+        weight_options = product_info['weight options']
 
         for weight_index, weight_option in enumerate(weight_options):
             markup.add(types.InlineKeyboardButton(
                 text=f"{weight_option.capitalize()} - "
-                     f"{int(get_product_info(product_index)['product price'][weight_index * 2][2])}₴",
-                callback_data=f'weight_{product_index}_{weight_index}'
+                     f"{int(product_info['product price'][weight_index * 2][2])}₴",
+                callback_data=f'weight_{product_hash}_{weight_index}'
             ))
         bot.send_message(call.message.chat.id, f"Оберіть вагу для товару <b>\"{product_name}\"</b>:",
                          parse_mode='HTML', reply_markup=markup)
     else:
-        product_price = int(get_product_info(product_index)['product price'])
+        product_price = int(product_info['product price'])
 
         user_id = call.from_user.id
 
@@ -237,20 +165,22 @@ def handle_buy_button(call):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("weight_"))
 def handle_weight_button(call):
-    product_index = int(call.data.split("_")[1])
+    product_hash = int(call.data.split("_")[1])
     weight_index = int(call.data.split("_")[2])
+    product = product_identifier_map.get(product_hash)
+    product_info = build_product_info(parse_product_page(product.url))
     markup = types.InlineKeyboardMarkup(row_width=2)
-    product_name = get_product_info(product_index)['product name']
-    packaging_options = get_product_info(product_index)['packaging options']
+    product_name = product_info['product name']
+    packaging_options = product_info['packaging options']
 
-    weight_price = int(get_product_info(product_index)['product price'][weight_index * 2][2])
+    weight_price = int(product_info['product price'][weight_index * 2][2])
 
     for packaging_index, packaging_option in enumerate(packaging_options):
-        packaging_price = int(get_product_info(product_index)['product price'][packaging_index + weight_index * 2][2])
+        packaging_price = int(product_info['product price'][packaging_index + weight_index * 2][2])
         price_difference = packaging_price - weight_price
         markup.add(types.InlineKeyboardButton(
             text=f"{packaging_option.capitalize()} {'+' + str(price_difference) + '₴' if price_difference > 0 else ''}",
-            callback_data=f'packaging_{product_index}_{weight_index}_{packaging_index}'
+            callback_data=f'packaging_{product_hash}_{weight_index}_{packaging_index}'
         ))
     bot.send_message(call.message.chat.id, f"Оберіть пакування для товару <b>\"{product_name}\"</b>:",
                      parse_mode='HTML', reply_markup=markup)
@@ -258,14 +188,16 @@ def handle_weight_button(call):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("packaging_"))
 def handle_packaging_button(call):
-    product_index = int(call.data.split("_")[1])
+    product_hash = int(call.data.split("_")[1])
     weight_index = int(call.data.split("_")[2])
     packaging_index = int(call.data.split("_")[3])
+    product = product_identifier_map.get(product_hash)
+    product_info = build_product_info(parse_product_page(product.url))
 
-    product_name = get_product_info(product_index)['product name']
-    weight_option = get_product_info(product_index)['weight options'][weight_index]
-    packaging_option = get_product_info(product_index)['packaging options'][packaging_index]
-    product_price = int(get_product_info(product_index)['product price'][packaging_index + weight_index * 2][2])
+    product_name = product_info['product name']
+    weight_option = product_info['weight options'][weight_index]
+    packaging_option = product_info['packaging options'][packaging_index]
+    product_price = int(product_info['product price'][packaging_index + weight_index * 2][2])
 
     user_id = call.from_user.id
 

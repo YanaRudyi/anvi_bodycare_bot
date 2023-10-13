@@ -1,5 +1,6 @@
 import json
 import re
+from dataclasses import dataclass
 
 import cachetools
 import requests
@@ -8,8 +9,14 @@ from bs4 import BeautifulSoup
 cache = cachetools.TTLCache(maxsize=100, ttl=3600)
 
 
+@dataclass(frozen=True)
+class Product:
+    url: str
+    text: str
+
+
 def collect_data_from_url(url, f):
-    product_links = []
+    products: list[Product] = []
     page_number = 1
 
     while True:
@@ -22,7 +29,11 @@ def collect_data_from_url(url, f):
 
             product_elements = soup.find_all("a", class_="woocommerce-LoopProduct-link woocommerce-loop-product__link")
             for product_element in product_elements:
-                product_links.append(f(product_element))
+                product = Product(
+                    url=product_element.attrs['href'],
+                    text=product_element.string
+                )
+                products.append(product)
 
             next_page_link = soup.find('a', class_="next page-number")
             if next_page_link:
@@ -35,7 +46,7 @@ def collect_data_from_url(url, f):
             print("Вибачте, ми маємо певні тимчасові проблеми. Будь ласка, спробуйте знову")
             break
 
-    return product_links
+    return products
 
 
 def get_product_page_links(url):
@@ -47,14 +58,13 @@ def get_product_page_links(url):
         return product_page_links
 
 
-def get_product_page_names(url):
-    if "product_page_names" in cache and cache['url'] == url:
-        return cache["product_page_names"]
+def get_products(url):
+    if url in cache:
+        return cache[url]
     else:
-        product_page_names = collect_data_from_url(url, lambda product_element: product_element.text)
-        cache['url'] = url
-        cache["product_page_names"] = product_page_names
-        return product_page_names
+        products = collect_data_from_url(url, lambda product_element: product_element.text)
+        cache[url] = products
+        return products
 
 
 def parse_product_page(url):

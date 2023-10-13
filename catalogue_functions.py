@@ -4,9 +4,7 @@ from product_details import get_product_page_links, parse_product_page
 shop_url = 'https://www.anvibodycare.com/shop'
 
 
-def send_product_info(product_index):
-    product_data = parse_product_page(get_product_page_links(shop_url)[product_index])
-    # print(product_data)
+def send_product_info(product_data):
     product_name = product_data.get('product name', 'N/A')
     description = product_data.get('description', 'N/A')
     message = f"{product_name}\n\n"
@@ -27,15 +25,14 @@ def send_product_info(product_index):
     return message
 
 
-def get_image_for_product(product_index):
-    product_data = parse_product_page(get_product_page_links(shop_url)[product_index])
+def get_image_for_product(product_url):
+    product_data = parse_product_page(product_url)
     image_url = product_data.get('images', [])
 
     return image_url
 
 
-def get_product_info(product_index):
-    product_data = parse_product_page(get_product_page_links(shop_url)[product_index])
+def build_product_info(product_data):
 
     product_name = product_data['product name']
 
