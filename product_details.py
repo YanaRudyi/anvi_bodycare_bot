@@ -48,11 +48,10 @@ def get_product_page_links(url):
 
 
 def get_product_page_names(url):
-    if "product_page_names" in cache and cache['url'] == url:
+    if "product_page_names" in cache:
         return cache["product_page_names"]
     else:
         product_page_names = collect_data_from_url(url, lambda product_element: product_element.text)
-        cache['url'] = url
         cache["product_page_names"] = product_page_names
         return product_page_names
 
