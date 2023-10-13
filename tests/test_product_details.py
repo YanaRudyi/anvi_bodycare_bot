@@ -1,65 +1,65 @@
+import unittest
 from unittest.mock import patch, Mock
-from product_details import get_product_page_links, parse_product_page
+from product_details import extract_weight_options, extract_packaging_options, extract_pricing_options, \
+    parse_product_page, extract_product_name
 
 
-@patch('product_details.requests.get')
-def test_get_product_page_links_mocked(mock_get):
-    mock_response = Mock()
-    mock_response.status_code = 200
-    mock_response.content = b'<a href="product-page-1">Product 1</a><a href="product-page-2">Product 2</a>'
-    mock_get.return_value = mock_response
+class TestProductParsing(unittest.TestCase):
 
-    shop_url = 'https://www.example.com/shop'
-    product_page_links = get_product_page_links(shop_url)
+    @patch('requests.get')
+    def test_parse_product_page(self, mock_requests_get):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body><h1 class="product_title">Product Name</h1></body></html>'
+        mock_requests_get.return_value = mock_response
 
-    assert isinstance(product_page_links, list)
-    assert len(product_page_links) == 2
-    assert 'product-page-1' in product_page_links
-    assert 'product-page-2' in product_page_links
-    mock_get.assert_called_once_with(shop_url)
+        product_details = parse_product_page('https://example.com/product/123')
+
+        self.assertEqual(product_details['product name'], 'Product Name')
+
+    def test_extract_product_name(self):
+        fake_soup = Mock()
+        fake_product_name_element = Mock()
+        fake_product_name_element.text = 'Fake Product Name'
+        fake_soup.find.return_value = fake_product_name_element
+
+        product_name = extract_product_name(fake_soup)
+
+        self.assertEqual(product_name, 'Fake Product Name')
+
+    @patch('requests.get')
+    def test_extract_weight_options(self, mock_requests_get):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body><select name="attribute_pa_vaha"><option>Виберіть опцію</option><option>100g</option><option>200g</option></select></body></html>'
+        mock_requests_get.return_value = mock_response
+
+        weight_options = extract_weight_options('https://example.com/product/123')
+
+        self.assertEqual(weight_options, ['100g', '200g'])
+
+    @patch('requests.get')
+    def test_extract_packaging_options(self, mock_requests_get):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body><select name="attribute_pa_pakuvannia"><option>Виберіть опцію</option><option>Option A</option><option>Option B</option></select></body></html>'
+        mock_requests_get.return_value = mock_response
+
+        packaging_options = extract_packaging_options('https://example.com/product/123')
+
+        self.assertEqual(packaging_options, ['Option A', 'Option B'])
+
+    @patch('requests.get')
+    def test_extract_pricing_options(self, mock_requests_get):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body><span class="woocommerce-Price-amount amount">10.99</span></body></html>'
+        mock_requests_get.return_value = mock_response
+
+        pricing_options = extract_pricing_options('https://example.com/product/123')
+
+        self.assertEqual(pricing_options, ['10.99'])
 
 
-@patch('product_details.requests.get')
-@patch('product_details.BeautifulSoup')
-def test_parse_product_page_mocked(mock_soup, mock_get):
-    mock_response = Mock()
-    mock_response.status_code = 200
-    mock_response.content = b'<script type="application/json" id="wix-warmup-data">{"data": "json_data_here"}</script>'
-    mock_get.return_value = mock_response
-
-    mock_soup_instance = Mock()
-    mock_soup.return_value = mock_soup_instance
-
-    mock_json_loads = Mock()
-    mock_json_loads.return_value = {
-        'appsWarmupData': {
-            '1380b703-ce81-ff05-f115-39571d94dfcd': {
-                'productPage_UAH_1': {
-                    'catalog': {
-                        'product': {
-                            'name': 'Product Name',
-                            'description': 'Product Description',
-                            'productItems': [{'formattedPrice': '10,00₴'}],
-                            'options': [{'selections': [{'key': '1'}]}],
-                            'additionalInfo': [{'info_data': 'info_value'}]
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    with patch('product_details.json.loads', mock_json_loads):
-        product_info = parse_product_page('https://www.example.com/product-page-1')
-
-    assert isinstance(product_info, dict)
-    assert 'product name' in product_info
-    assert 'description' in product_info
-    assert 'prices' in product_info
-    assert 'weight_volume' in product_info
-    assert 'packaging' in product_info
-    assert 'additional_info' in product_info
-
-    mock_get.assert_called_once_with('https://www.example.com/product-page-1')
-
-    mock_soup.assert_called_once_with(mock_response.content, 'html.parser')
+if __name__ == '__main__':
+    unittest.main()
