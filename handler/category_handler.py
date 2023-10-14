@@ -13,7 +13,7 @@ category_url_dict = {
 
 def create_category_buttons():
     return [types.InlineKeyboardButton(
-        text=category.capitalize(),
+        text=category.title(),
         callback_data=f'category_{category.lower()}'
     ) for category in category_url_dict]
 
@@ -27,7 +27,7 @@ def show_products_for_category(call):
     markup.add(*product_buttons)
     # Do not delete whitespaces, it needs for button width
     bot.send_message(call.message.chat.id,
-                     f"Оберіть товар у категорії {selected_category.title()}:⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+                     f"Оберіть товар у категорії {selected_category}:⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
                      reply_markup=markup)
 
 
