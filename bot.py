@@ -6,7 +6,7 @@ from database_setup import connect, close_connection, create_orders_table
 from handler.category_handler import create_category_buttons
 from handler.product_handler import product_identifier_map
 from product_details import parse_product_page
-from writing_questions_to_spreadsheet import write_to_spreadsheet
+from writing_questions_to_spreadsheet import write_to_spreadsheet, write_order_to_spreadsheet
 
 shop_url = 'https://www.anvibodycare.com/shop'
 
@@ -29,7 +29,7 @@ def send_main_menu(message):
                      reply_markup=main_menu_keyboard)
 
 
-# create_orders_table()
+create_orders_table()
 
 insert_order_query = """
 INSERT INTO orders (user_id, products, contact_name, contact_phone)
@@ -241,6 +241,27 @@ def start_ordering_process(call):
         bot.send_message(user_id, '❗Помилка: Ваш кошик порожній')
 
 
+@bot.message_handler(content_types=['contact'], func=lambda message: order_process_started.get(message.from_user.id, False))
+def handle_order_contact(message):
+    user_id = message.from_user.id
+    contact_name = message.contact.first_name
+    contact_phone = message.contact.phone_number
+
+    total_price = 0
+    for item in shopping_cart[user_id]:
+        total_price += item.get('product price', 0)
+
+    write_order_to_spreadsheet({
+        'first_name': contact_name,
+        'phone_number': contact_phone,
+        'message': str(total_price)
+    }, shopping_cart[user_id])
+
+    del shopping_cart[user_id], order_process_started[user_id]
+
+    bot.send_message(user_id, "Ваше замовлення було прийнято! Ми зв'яжемося з Вами найближчим часом.", reply_markup=main_menu_keyboard)
+
+
 @bot.message_handler(content_types=['contact'],
                      func=lambda message: order_process_started.get(message.from_user.id, False))
 def handle_contact(call):
@@ -261,8 +282,6 @@ def handle_contact(call):
     close_connection(conn)
 
     del shopping_cart[user_id], order_process_started[user_id]
-
-    bot.send_message(user_id, "Ваше замовлення було прийнято!", reply_markup=main_menu_keyboard)
 
 
 @bot.message_handler(func=lambda message: message.text == "❌ Відмінити")
